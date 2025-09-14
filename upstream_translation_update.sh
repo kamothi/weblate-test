@@ -30,12 +30,6 @@ WEBLATE_PROJECT="${WEBLATE_PROJECT:-$PROJECT}"
 WEBLATE_COMPONENT="${WEBLATE_COMPONENT:-$PROJECT-$WEBLATE_BRANCH}"
 AUTH_HEADER="Authorization: Token ${WEBLATE_API_TOKEN}"
 
-# curl 옵션(필요 시 -k)
-CURL_OPTS=(-sS)
-[[ -n "${WEBLATE_INSECURE:-}" ]] && CURL_OPTS+=(-k)
-
-# ** 글롭/빈 매칭 허용
-shopt -s nullglob globstar
 
 # --- weblate에서 컴포넌트 존재 유무 확인 ---
 weblate_component_check_or_skip() {
