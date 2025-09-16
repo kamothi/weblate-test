@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Weblate에 등록된 모든 언어를 삭제하는 스크립트
+Script to delete all languages registered in Weblate
 """
 
 import requests
@@ -11,33 +11,33 @@ from typing import Dict, List, Optional
 
 
 class WeblateLanguageDeleter:
-    """Weblate 언어 삭제 클라이언트"""
+    """Weblate language deletion client"""
     
     def __init__(self, base_url: str, api_key: str):
         """
-        Weblate 언어 삭제 클라이언트 초기화
+        Initialize the Weblate language deletion client
         
         Args:
-            base_url: Weblate 서버의 기본 URL
-            api_key: Weblate API 키
+            base_url: Base URL of the Weblate server
+            api_key: Weblate API key
         """
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
         self.session = requests.Session()
         
-        # API 키 인증 헤더 설정
+        # Set API key authentication headers
         self.session.headers.update({
-            'Authorization': 'Token {api_key}',
+            'Authorization': f'Token {api_key}',
             'Content-Type': 'application/json'
         })
     
     def get_all_languages(self) -> List[Dict]:
         """
-        Weblate에 등록된 모든 언어 정보를 가져옵니다.
-        페이지네이션을 지원하여 모든 페이지의 데이터를 수집합니다.
+        Retrieve all languages registered in Weblate.
+        Supports pagination to collect data from all pages.
         
         Returns:
-            언어 정보 리스트
+            List of language information
         """
         all_languages = []
         url = f"{self.base_url}/api/languages/"
@@ -51,28 +51,28 @@ class WeblateLanguageDeleter:
                 results = data.get('results', [])
                 all_languages.extend(results)
                 
-                # 다음 페이지 URL 확인
+                # Check for next page URL
                 url = data.get('next')
                 
                 if url:
-                    print(f"다음 페이지 로딩 중... (현재 {len(all_languages)}개 언어 수집됨)")
+                    print(f"Loading next page... (Currently collected {len(all_languages)} languages)")
             
-            print(f"총 {len(all_languages)}개 언어 정보를 수집했습니다.")
+            print(f"Collected a total of {len(all_languages)} languages.")
             return all_languages
             
         except requests.exceptions.RequestException as e:
-            print(f"언어 정보를 가져오는 중 오류 발생: {e}")
+            print(f"Error occurred while retrieving language information: {e}")
             return all_languages
     
     def delete_language(self, language_code: str) -> bool:
         """
-        특정 언어를 삭제합니다.
+        Delete a specific language.
         
         Args:
-            language_code: 삭제할 언어 코드
+            language_code: Code of the language to delete
             
         Returns:
-            삭제 성공 여부
+            Whether the deletion succeeded
         """
         url = f"{self.base_url}/api/languages/{language_code}/"
         
@@ -83,33 +83,33 @@ class WeblateLanguageDeleter:
             return True
             
         except requests.exceptions.RequestException as e:
-            print(f"언어 삭제 중 오류 발생: {e}")
+            print(f"Error occurred while deleting language: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                print(f"응답 내용: {e.response.text}")
+                print(f"Response body: {e.response.text}")
             return False
     
     def delete_all_languages(self, dry_run: bool = True, exclude_languages: List[str] = None) -> Dict:
         """
-        모든 언어를 삭제합니다.
+        Delete all languages.
         
         Args:
-            dry_run: 실제 삭제하지 않고 시뮬레이션만 실행
-            exclude_languages: 삭제에서 제외할 언어 코드 리스트
+            dry_run: If True, simulate deletion without actually performing it
+            exclude_languages: List of language codes to exclude from deletion
             
         Returns:
-            삭제 결과 통계
+            Deletion result summary
         """
         if exclude_languages is None:
             exclude_languages = []
         
-        print("=== Weblate 언어 삭제 시작 ===\n")
+        print("=== Weblate Language Deletion Started ===\n")
         
-        # 1. 현재 등록된 언어 목록 가져오기
-        print("1. 현재 등록된 언어 목록 조회 중...")
+        # 1. Retrieve currently registered languages
+        print("1. Retrieving currently registered languages...")
         languages = self.get_all_languages()
         
         if not languages:
-            print("삭제할 언어가 없습니다.")
+            print("No languages found to delete.")
             return {
                 'total': 0,
                 'deleted': 0,
@@ -117,9 +117,9 @@ class WeblateLanguageDeleter:
                 'failed': 0
             }
         
-        print(f"총 {len(languages)}개의 언어가 등록되어 있습니다.\n")
+        print(f"Total {len(languages)} languages are registered.\n")
         
-        # 2. 삭제할 언어 필터링
+        # 2. Filter languages for deletion
         languages_to_delete = []
         languages_to_skip = []
         
@@ -132,41 +132,41 @@ class WeblateLanguageDeleter:
             else:
                 languages_to_delete.append((code, name))
         
-        print(f"삭제 대상: {len(languages_to_delete)}개")
-        print(f"제외 대상: {len(languages_to_skip)}개")
+        print(f"Languages to delete: {len(languages_to_delete)}")
+        print(f"Excluded languages: {len(languages_to_skip)}")
         
         if languages_to_skip:
-            print("제외할 언어:")
+            print("Excluded languages:")
             for code, name in languages_to_skip:
                 print(f"  - {code}: {name}")
         print()
         
-        # 3. 언어 삭제 실행
-        print("2. 언어 삭제 실행 중...")
+        # 3. Execute deletion
+        print("2. Executing language deletion...")
         deleted_count = 0
         failed_count = 0
         
         for code, name in languages_to_delete:
-            print(f"처리 중: {code} ({name})")
+            print(f"Processing: {code} ({name})")
             
             if dry_run:
-                print(f"  [드라이 런] 삭제 시뮬레이션")
+                print(f"  [Dry Run] Deletion simulation")
                 deleted_count += 1
             else:
                 if self.delete_language(code):
-                    print(f"  ✓ 삭제 성공")
+                    print(f"  ✓ Deletion successful")
                     deleted_count += 1
                 else:
-                    print(f"  ✗ 삭제 실패")
+                    print(f"  ✗ Deletion failed")
                     failed_count += 1
         
-        # 4. 결과 요약
-        print(f"\n=== 삭제 완료 ===")
-        print(f"총 언어 수: {len(languages)}개")
-        print(f"삭제된 언어: {deleted_count}개")
-        print(f"건너뛴 언어: {len(languages_to_skip)}개")
-        print(f"실패한 언어: {failed_count}개")
-        print(f"드라이 런: {dry_run}")
+        # 4. Summary
+        print(f"\n=== Deletion Completed ===")
+        print(f"Total languages: {len(languages)}")
+        print(f"Deleted: {deleted_count}")
+        print(f"Skipped: {len(languages_to_skip)}")
+        print(f"Failed: {failed_count}")
+        print(f"Dry run: {dry_run}")
         
         return {
             'total': len(languages),
@@ -177,85 +177,85 @@ class WeblateLanguageDeleter:
     
     def backup_languages(self, filename: str = "weblate_languages_backup.json"):
         """
-        현재 언어 정보를 백업 파일로 저장합니다.
+        Save the current language information to a backup file.
         
         Args:
-            filename: 백업 파일명
+            filename: Backup file name
         """
-        print(f"언어 정보 백업 중: {filename}")
+        print(f"Backing up language information: {filename}")
         
         languages = self.get_all_languages()
         
         if languages:
             with open(filename, 'w', encoding='utf-8') as f:
                 json.dump(languages, f, indent=2, ensure_ascii=False)
-            print(f"✓ 백업 완료: {len(languages)}개 언어")
+            print(f"✓ Backup completed: {len(languages)} languages")
         else:
-            print("백업할 언어가 없습니다.")
+            print("No languages available for backup.")
 
 
 def main():
-    """메인 함수"""
-    parser = argparse.ArgumentParser(description='Weblate 언어 삭제 도구')
+    """Main function"""
+    parser = argparse.ArgumentParser(description='Weblate language deletion tool')
     parser.add_argument('--apply', action='store_true', 
-                       help='실제로 언어를 삭제합니다 (기본값: 드라이 런)')
+                       help='Actually delete languages (default: dry run)')
     parser.add_argument('--exclude', nargs='+', default=['en', 'ko'],
-                       help='삭제에서 제외할 언어 코드 (기본값: en ko)')
+                       help='Language codes to exclude from deletion (default: en ko)')
     parser.add_argument('--backup', action='store_true', default=True,
-                       help='삭제 전 백업을 생성합니다 (기본값: True)')
+                       help='Create a backup before deletion (default: True)')
     
     args = parser.parse_args()
     
-    print("=== Weblate 언어 삭제 도구 ===\n")
+    print("=== Weblate Language Deletion Tool ===\n")
     
-    # Weblate 설정
+    # Weblate settings
     weblate_url = ""
     weblate_api_key = ""
     
-    print(f"Weblate 서버: {weblate_url}")
-    print(f"실행 모드: {'실제 삭제' if args.apply else '드라이 런'}")
-    print(f"제외 언어: {args.exclude}")
-    print(f"백업 생성: {'예' if args.backup else '아니오'}")
+    print(f"Weblate server: {weblate_url}")
+    print(f"Mode: {'Actual deletion' if args.apply else 'Dry run'}")
+    print(f"Excluded languages: {args.exclude}")
+    print(f"Create backup: {'Yes' if args.backup else 'No'}")
     print()
     
-    # Weblate 언어 삭제 객체 생성
+    # Create Weblate language deleter object
     deleter = WeblateLanguageDeleter(weblate_url, weblate_api_key)
     
-    # 1. 연결 테스트
-    print("1. Weblate 서버 연결 테스트...")
+    # 1. Test connection
+    print("1. Testing connection to Weblate server...")
     try:
         languages = deleter.get_all_languages()
-        print(f"✓ 연결 성공: {len(languages)}개 언어 발견")
+        print(f"✓ Connection successful: {len(languages)} languages found")
     except Exception as e:
-        print(f"✗ 연결 실패: {e}")
+        print(f"✗ Connection failed: {e}")
         return
     
-    # 2. 백업 생성
+    # 2. Create backup
     if args.backup:
-        print("\n2. 언어 정보 백업 생성...")
+        print("\n2. Creating language backup...")
         deleter.backup_languages()
     
-    # 3. 삭제할 언어 확인
-    print("\n3. 삭제할 언어 확인...")
+    # 3. Preview languages to delete
+    print("\n3. Checking languages to delete...")
     languages = deleter.get_all_languages()
     
     if languages:
-        print("현재 등록된 언어:")
-        for lang in languages[:10]:  # 처음 10개만 표시
+        print("Currently registered languages:")
+        for lang in languages[:10]:  # show only first 10
             code = lang.get('code', 'N/A')
             name = lang.get('name', 'N/A')
             print(f"  - {code}: {name}")
         if len(languages) > 10:
-            print(f"  ... 및 {len(languages) - 10}개 더")
+            print(f"  ... and {len(languages) - 10} more")
     else:
-        print("등록된 언어가 없습니다.")
+        print("No registered languages found.")
     
-    # 4. 삭제 실행
-    print(f"\n4. {'실제 삭제' if args.apply else '드라이 런으로 삭제 테스트'}...")
+    # 4. Execute deletion
+    print(f"\n4. {'Performing actual deletion' if args.apply else 'Testing deletion in dry run mode'}...")
     
     if not args.apply:
-        print("⚠️  드라이 런 모드: 실제 삭제가 수행되지 않습니다.")
-        print("실제로 삭제하려면 --apply 옵션을 사용하세요.")
+        print("⚠️  Dry run mode: No actual deletion performed.")
+        print("Use the --apply option to actually delete languages.")
         print()
     
     result = deleter.delete_all_languages(
@@ -263,12 +263,12 @@ def main():
         exclude_languages=args.exclude
     )
     
-    # 5. 결과 요약
+    # 5. Final summary
     if args.apply:
-        print("\n✅ 실제 삭제가 완료되었습니다!")
+        print("\n✅ Actual deletion completed!")
     else:
-        print("\n📋 드라이 런 완료. 실제 삭제를 위해 --apply 옵션을 사용하세요.")
+        print("\n📋 Dry run completed. Use --apply option for actual deletion.")
 
 
 if __name__ == "__main__":
-    main() 
+    main()
