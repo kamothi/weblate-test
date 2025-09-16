@@ -1,36 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Weblate 언어 일괄 생성/갱신 스크립트 (이름=Zanata, 복수형=입력 JSON 우선)
-- 입력1: code -> plural-forms 맵(JSON)
-- 입력2: Zanata locales JSON (배열)
+Weblate batch language create/update script (name=Zanata, plural=prefer input JSON)
+- Input1: code -> plural-forms map (JSON)
+- Input2: Zanata locales JSON (array)
 
-동작:
-  * 언어가 없으면 생성(코드/이름/복수형 공식)
-  * 언어가 있으면 name/plural(number,formula)만 diff 적용(PATCH)
-우선순위:
-  * plural: 입력1(사용자 json) > Zanata pluralForms > 없으면 스킵
-  * name: Zanata displayName 우선, 없으면 nativeName, 없으면 code
+Behavior:
+  * If a language does not exist → create (code/name/plural formula)
+  * If a language exists → apply diff only for name/plural(number,formula) via PATCH
+Priority:
+  * plural: input1 (user json) > Zanata pluralForms > skip if none
+  * name: Zanata displayName > nativeName > fallback to code
 
-기타:
-  * 코드 정규화: '-' → '_' 강제 (예: tr-TR → tr_TR)
-  * RTL 후보 언어는 direction=rtl 로 생성(업데이트에선 direction은 변경하지 않음)
-  * 기본 드라이런, --apply 로 실제 반영
+Other:
+  * Code normalization: force '-' → '_' (e.g., tr-TR → tr_TR)
+  * RTL candidate languages get direction=rtl when created (not changed in update)
+  * Default is dry-run, use --apply for real changes
 """
 
 import os, sys, json, argparse, urllib.parse, re
 import requests
 from typing import Dict, Any, Tuple, Optional
 
-# ---- 코드 정규화 -------------------------------------------------------------
+# ---- Code normalization ------------------------------------------------------
 def canon(code: str) -> str:
-    """코드를 Weblate 표준으로 정규화: '-' → '_', 맨 앞만 소문자"""
+    """Normalize code for Weblate: '-' → '_', lowercase only first letter"""
     if not code:
         return ""
     normalized = code.strip().replace("-", "_")
     return normalized[0].lower() + normalized[1:] if normalized else normalized
 
-# ---- plural 파서 -------------------------------------------------------------
+# ---- Plural parser -----------------------------------------------------------
 def parse_plural_forms(pf: str) -> Optional[Tuple[int, str]]:
     """'nplurals=2; plural=(n != 1);' → (2, 'n != 1')"""
     if not pf:
@@ -49,9 +49,9 @@ def parse_plural_forms(pf: str) -> Optional[Tuple[int, str]]:
         return None
     return number, formula
 
-# ---- 입력 로더 ---------------------------------------------------------------
+# ---- Input loaders -----------------------------------------------------------
 def load_plural_map(path: str) -> Dict[str, str]:
-    """입력 plural JSON → {canon_code: 'nplurals=..; plural=..'}"""
+    """Plural JSON input → {canon_code: 'nplurals=..; plural=..'}"""
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     out: Dict[str, str] = {}
@@ -71,15 +71,15 @@ def load_plural_map(path: str) -> Dict[str, str]:
                         if isinstance(v, str):
                             out[canon(k)] = v.strip()
     else:
-        raise ValueError("지원하지 않는 JSON 형식(Plural Map)")
+        raise ValueError("Unsupported JSON format (Plural Map)")
     return out
 
 def load_zanata_locales(path: str) -> Dict[str, Dict[str, Any]]:
-    """Zanata JSON(배열) → {canon_code: {"name": str, "rtl": bool, "pluralForms": str}}"""
+    """Zanata JSON (array) → {canon_code: {"name": str, "rtl": bool, "pluralForms": str}}"""
     with open(path, "r", encoding="utf-8") as f:
         arr = json.load(f)
     if not isinstance(arr, list):
-        raise ValueError("Zanata JSON은 배열이어야 합니다.")
+        raise ValueError("Zanata JSON must be an array.")
     out: Dict[str, Dict[str, Any]] = {}
     rtl_langs = {"ar", "fa", "he", "ur", "ug", "dv", "ps", "ku_Arab"}
     for it in arr:
@@ -143,7 +143,7 @@ class WeblateClient:
         if plural_number is not None and plural_formula:
             payload["plural"] = {"number": plural_number, "formula": plural_formula}
         if not payload:
-            return 200, ""  # 변경사항 없음
+            return 200, ""  # no changes
         r = self.session.patch(self._lang_url(code), json=payload, timeout=self.timeout)
         try:
             r.raise_for_status()
@@ -151,24 +151,24 @@ class WeblateClient:
         except requests.exceptions.HTTPError:
             return r.status_code, r.text
 
-# ---- 메인 --------------------------------------------------------------------
+# ---- Main --------------------------------------------------------------------
 def main():
-    p = argparse.ArgumentParser(description="Weblate 언어 일괄 생성/갱신")
-    p.add_argument("-i", "--input", required=True, help="Plural-Forms 맵 JSON")
+    p = argparse.ArgumentParser(description="Weblate batch language create/update")
+    p.add_argument("-i", "--input", required=True, help="Plural-Forms map JSON")
     p.add_argument("-z", "--zanata", required=True, help="Zanata locales JSON")
-    p.add_argument("--apply", action="store_true", help="실제로 Weblate에 반영")
+    p.add_argument("--apply", action="store_true", help="Apply changes to Weblate")
     args = p.parse_args()
 
     url = os.getenv("WEBLATE_URL", "")
     token = os.getenv("WEBLATE_API_KEY", "")
     if not token:
-        print("ERROR: WEBLATE_API_KEY 환경변수를 지정하세요.", file=sys.stderr)
+        print("ERROR: Specify WEBLATE_API_KEY environment variable.", file=sys.stderr)
         sys.exit(1)
 
     plural_map = load_plural_map(args.input)
     zanata_map = load_zanata_locales(args.zanata)
-    print(f"=== 계획 ===\n- plural entries: {len(plural_map)}\n- zanata entries: {len(zanata_map)}")
-    print(f"- 모드: {'실제 반영' if args.apply else '드라이런'}\n")
+    print(f"=== Plan ===\n- plural entries: {len(plural_map)}\n- zanata entries: {len(zanata_map)}")
+    print(f"- Mode: {'Apply changes' if args.apply else 'Dry-run'}\n")
 
     cli = WeblateClient(url, token)
 
@@ -183,12 +183,12 @@ def main():
             base = code.split("_", 1)[0]
             pf_base = plural_map.get(base)
             if pf_base:
-                print(f"  · {code}: plural을 기본언어 {base}에서 상속")
+                print(f"  · {code}: inherit plural from base language {base}")
                 pf_str = pf_base
 
         parsed = parse_plural_forms(pf_str or "")
         if not parsed:
-            print(f"- {code}: plural 미확정(입력 JSON에 {code}도 {code.split('_',1)[0]}도 없음) → 스킵")
+            print(f"- {code}: plural unresolved (neither {code} nor {code.split('_',1)[0]} in input JSON) → skip")
             skipped += 1
             continue
         num, formula = parsed
@@ -201,11 +201,7 @@ def main():
             cur_name = (data.get("name") or "").strip()
             need_name = (name and name != cur_name)
             need_plural = not (cur_num == num and cur_for == formula)
-            if not (need_name or need_plural):
-                print(f"- {code}: 동일 → 스킵")
-                skipped += 1
-                continue
-            print(f"- {code}: 업데이트 name={cur_name!r}->{name!r} plural={cur_num}/{cur_for}->{num}/{formula}")
+            print(f"- {code}: update name={cur_name!r}->{name!r} plural={cur_num}/{cur_for}->{num}/{formula}")
             if args.apply:
                 s, body = cli.update_language(code, name if need_name else None,
                                               num if need_plural else None,
@@ -215,7 +211,7 @@ def main():
                     failed += 1; failures.append((code, s, body[:300]))
             else: updated += 1
         elif status == 404:
-            print(f"- {code}: 생성 name={name!r} plural=({num},{formula}) {direction or ''}")
+            print(f"- {code}: create name={name!r} plural=({num},{formula}) {direction or ''}")
             if args.apply:
                 s, body = cli.create_language(code, name, num, formula, direction)
                 if s in (200, 201): created += 1
@@ -223,12 +219,12 @@ def main():
                     failed += 1; failures.append((code, s, body[:300]))
             else: created += 1
         else:
-            print(f"- {code}: 조회 실패 HTTP {status}")
+            print(f"- {code}: lookup failed HTTP {status}")
             failed += 1; failures.append((code, status, "lookup_failed"))
 
-    print(f"\n=== 결과 ===\n생성:{created} 갱신:{updated} 스킵:{skipped} 실패:{failed}")
+    print(f"\n=== Result ===\nCreated:{created} Updated:{updated} Skipped:{skipped} Failed:{failed}")
     if failures:
-        print("\n실패 상세:")
+        print("\nFailures detail:")
         for code, s, body in failures[:30]:
             print(f"  - {code}: HTTP {s} body={body}")
 
