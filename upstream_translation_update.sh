@@ -150,10 +150,19 @@ copy_pot "$ALL_MODULES"
 mkdir -p translation-source
 mv .translation-source translation-source
 
+# --- require msgen (GNU gettext) ---
+if ! command -v msgen >/dev/null 2>&1; then
+  echo "[error] 'msgen' not found. Please install GNU gettext (e.g., apt-get install gettext)."
+  exit 1
+fi
+
 # POT upload
 for pot in translation-source/*.pot; do
   [ -f "$pot" ] || continue
-  curl -X POST \
+  
+  msgen "$pot" -o "$pot"
+
+  curl ${CURL_OPTS:+${CURL_OPTS[@]}} -X POST \
     -H "$AUTH_HEADER" \
     -H "Accept: application/json" \
     -F "file=@${pot}" \
