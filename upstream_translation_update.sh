@@ -3,8 +3,8 @@
 #   ./weblate_update.sh <PROJECT> <JOBNAME> <BRANCHNAME> <HORIZON_DIR>
 #
 # Required env:
-#   WEBLATE_API_URL    (e.g. https://weblate.example.com)
-#   WEBLATE_API_TOKEN  (Weblate personal token)
+#   WEBLATE_URL    (e.g. https://weblate.example.com)
+#   WEBLATE_TOKEN  (Weblate personal token)
 #   WEBLATE_SRC_LANG   (source language slug, e.g. en)
 # Optional env:
 #   WEBLATE_PROJECT    (defaults to $PROJECT)
@@ -16,31 +16,31 @@ JOBNAME=$2
 BRANCHNAME=$3
 HORIZON_DIR=$4
 
-# WEBLATE_BRANCH: slug용 정규화( '/' -> '-' )
+# WEBLATE_BRANCH: normalize for slug ( '/' -> '-' )
 WEBLATE_BRANCH=${BRANCHNAME//\//-}
 
 SCRIPTSDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$SCRIPTSDIR/common_translation_update.sh"
 
 # checks weblate env
-: "${WEBLATE_API_URL:?Set WEBLATE_API_URL}"
-: "${WEBLATE_API_TOKEN:?Set WEBLATE_API_TOKEN}"
+: "${WEBLATE_URL:?Set WEBLATE_URL}"
+: "${WEBLATE_TOKEN:?Set WEBLATE_TOKEN}"
 : "${WEBLATE_SRC_LANG:?Set WEBLATE_SRC_LANG}"
 WEBLATE_PROJECT="${WEBLATE_PROJECT:-$PROJECT}"
 WEBLATE_COMPONENT="${WEBLATE_COMPONENT:-$PROJECT-$WEBLATE_BRANCH}"
-AUTH_HEADER="Authorization: Token ${WEBLATE_API_TOKEN}"
+AUTH_HEADER="Authorization: Token ${WEBLATE_TOKEN}"
 
 
-# --- weblate에서 컴포넌트 존재 유무 확인 ---
+# --- Check if the component exists in Weblate ---
 weblate_component_check_or_skip() {
-  local url="${WEBLATE_API_URL%/}/api/components/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/"
-  # 응답 바디/코드를 분리해 받기
+  local url="${WEBLATE_URL%/}/api/components/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/"
+  # Separate response body/code
   local tmp resp_code
   tmp="$(mktemp)"
   resp_code=$(curl "${CURL_OPTS[@]}" -w "%{http_code}" -H "$AUTH_HEADER" \
                "$url" -o "$tmp" || true)
 
-  # 200이 아닌 즉, 컴포넌트가 없다면 스킵(exit 0)
+  # If response is not 200 (component does not exist) → skip (exit 0)
   if [[ "$resp_code" != "200" ]]; then
     echo "[weblate] component unavailable (HTTP $resp_code) -> skip job"
     ERROR_ABORT=0
@@ -48,7 +48,7 @@ weblate_component_check_or_skip() {
     exit 0
   fi
 
-  # lock 유무 확인
+  # Check lock status
   if command -v jq >/dev/null 2>&1; then
     if jq -e '.locked==true or .is_locked==true' "$tmp" >/dev/null; then
       echo "[weblate] component locked -> skip job"
@@ -76,7 +76,7 @@ ALL_MODULES=""
 # Setup venv - needed for all projects for our tools
 setup_venv
 
-# Weblate에 컴포넌트가 없거나 lock이 걸려 있을 경우 스킵
+# Skip if component does not exist or is locked in Weblate
 weblate_component_check_or_skip
 
 setup_git
@@ -145,19 +145,20 @@ case "$PROJECT" in
     ;;
 esac
 
-# === Weblate API upload (no repo commit/push; pure upload) ===
+# === Weblate API upload ===
 copy_pot "$ALL_MODULES"
 mkdir -p translation-source
 mv .translation-source translation-source
 
-# POT 업로드(소스 언어로)
-for pot in translation-source/**/*.pot translation-source/*.pot; do
+# POT upload
+for pot in translation-source/*.pot; do
   [ -f "$pot" ] || continue
-  curl "${CURL_OPTS[@]}" -X POST \
+  curl -X POST \
     -H "$AUTH_HEADER" \
+    -H "Accept: application/json" \
     -F "file=@${pot}" \
-    -F "method=upload" \
-    "${WEBLATE_API_URL%/}/api/translations/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/${WEBLATE_SRC_LANG}/file/" >/dev/null
+    -F "method=replace" \
+    "${WEBLATE_URL%/}/api/translations/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/${WEBLATE_SRC_LANG}/file/" >/dev/null
 done
 
 # Tell finish function that everything is fine.
