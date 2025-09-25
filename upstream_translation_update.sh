@@ -3,8 +3,8 @@
 #   ./weblate_update.sh <PROJECT> <JOBNAME> <BRANCHNAME> <HORIZON_DIR>
 #
 # Required env:
-#   WEBLATE_API_URL    (e.g. https://weblate.example.com)
-#   WEBLATE_API_TOKEN  (Weblate personal token)
+#   WEBLATE_URL    (e.g. https://weblate.example.com)
+#   WEBLATE_TOKEN  (Weblate personal token)
 #   WEBLATE_SRC_LANG   (source language slug, e.g. en)
 # Optional env:
 #   WEBLATE_PROJECT    (defaults to $PROJECT)
@@ -23,17 +23,17 @@ SCRIPTSDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$SCRIPTSDIR/common_translation_update.sh"
 
 # checks weblate env
-: "${WEBLATE_API_URL:?Set WEBLATE_API_URL}"
-: "${WEBLATE_API_TOKEN:?Set WEBLATE_API_TOKEN}"
+: "${WEBLATE_URL:?Set WEBLATE_URL}"
+: "${WEBLATE_TOKEN:?Set WEBLATE_TOKEN}"
 : "${WEBLATE_SRC_LANG:?Set WEBLATE_SRC_LANG}"
 WEBLATE_PROJECT="${WEBLATE_PROJECT:-$PROJECT}"
 WEBLATE_COMPONENT="${WEBLATE_COMPONENT:-$PROJECT-$WEBLATE_BRANCH}"
-AUTH_HEADER="Authorization: Token ${WEBLATE_API_TOKEN}"
+AUTH_HEADER="Authorization: Token ${WEBLATE_TOKEN}"
 
 
 # --- Check if the component exists in Weblate ---
 weblate_component_check_or_skip() {
-  local url="${WEBLATE_API_URL%/}/api/components/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/"
+  local url="${WEBLATE_URL%/}/api/components/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/"
   # Separate response body/code
   local tmp resp_code
   tmp="$(mktemp)"
@@ -151,14 +151,14 @@ mkdir -p translation-source
 mv .translation-source translation-source
 
 # POT upload
-for pot in translation-source/**/*.pot translation-source/*.pot; do
+for pot in translation-source/*.pot; do
   [ -f "$pot" ] || continue
-  curl "${CURL_OPTS[@]}" -X POST \
+  curl -X POST \
     -H "$AUTH_HEADER" \
     -H "Accept: application/json" \
     -F "file=@${pot}" \
     -F "method=replace" \
-    "${WEBLATE_API_URL%/}/api/translations/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/${WEBLATE_SRC_LANG}/file/" >/dev/null
+    "${WEBLATE_URL%/}/api/translations/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/${WEBLATE_SRC_LANG}/file/" >/dev/null
 done
 
 # Tell finish function that everything is fine.
