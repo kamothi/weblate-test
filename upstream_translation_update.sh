@@ -25,7 +25,6 @@ source "$SCRIPTSDIR/common_translation_update.sh"
 # checks weblate env
 : "${WEBLATE_URL:?Set WEBLATE_URL}"
 : "${WEBLATE_TOKEN:?Set WEBLATE_TOKEN}"
-: "${WEBLATE_SRC_LANG:?Set WEBLATE_SRC_LANG}"
 WEBLATE_PROJECT="${WEBLATE_PROJECT:-$PROJECT}"
 WEBLATE_COMPONENT="${WEBLATE_COMPONENT:-$PROJECT-$WEBLATE_BRANCH}"
 AUTH_HEADER="Authorization: Token ${WEBLATE_TOKEN}"
@@ -150,16 +149,31 @@ copy_pot "$ALL_MODULES"
 mkdir -p translation-source
 mv .translation-source translation-source
 
-# --- require msgen (GNU gettext) ---
+# --- ensure msgen (GNU gettext) installed automatically ---
 if ! command -v msgen >/dev/null 2>&1; then
-  echo "[error] 'msgen' not found. Please install GNU gettext (e.g., apt-get install gettext)."
-  exit 1
+  echo "[info] 'msgen' not found. Installing 'gettext'..."
+
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update && sudo apt-get install -y gettext
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y gettext
+  elif command -v yum >/dev/null 2>&1; then
+    sudo yum install -y gettext
+  elif command -v apk >/dev/null 2>&1; then
+    sudo apk add --no-cache gettext
+  elif command -v pacman >/dev/null 2>&1; then
+    sudo pacman -S --noconfirm gettext
+  elif command -v brew >/dev/null 2>&1; then
+    brew install gettext && brew link gettext --force
+  else
+    echo "[warn] could not auto-install gettext on this system. Please install manually."
+  fi
 fi
 
 # POT upload
 for pot in translation-source/*.pot; do
   [ -f "$pot" ] || continue
-  
+
   msgen "$pot" -o "$pot"
 
   curl ${CURL_OPTS:+${CURL_OPTS[@]}} -X POST \
@@ -167,7 +181,7 @@ for pot in translation-source/*.pot; do
     -H "Accept: application/json" \
     -F "file=@${pot}" \
     -F "method=replace" \
-    "${WEBLATE_URL%/}/api/translations/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/${WEBLATE_SRC_LANG}/file/" >/dev/null
+    "${WEBLATE_URL%/}/api/translations/${WEBLATE_PROJECT}/${WEBLATE_COMPONENT}/en_US/file/" >/dev/null
 done
 
 # Tell finish function that everything is fine.
