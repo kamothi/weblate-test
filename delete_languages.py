@@ -17,6 +17,7 @@ Script to delete all languages registered in Weblate
 
 import argparse
 import json
+import os
 import requests
 
 from typing import Dict
@@ -185,8 +186,8 @@ def main():
     print("=== Weblate Language Deletion Tool ===\n")
 
     # Weblate settings
-    weblate_url = ""
-    weblate_api_key = ""
+    weblate_url = os.getenv("WEBLATE_URL")
+    weblate_api_key = os.getenv("WEBLATE_API_KEY")
 
     print(f"Weblate server: {weblate_url}")
     print(f"Mode: {'Actual deletion' if args.apply else 'Dry run'}")

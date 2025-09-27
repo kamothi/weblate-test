@@ -110,10 +110,13 @@ def load_zanata_locales(path: str) -> Dict[str, Dict[str, Any]]:
     for it in arr:
         if not isinstance(it, dict):
             continue
+
         raw = it.get("localeId") or it.get("id") or ""
         code = canon(raw)
+
         if not code:
             continue
+
         disp = (it.get("displayName") or "").strip()
         native = (it.get("nativeName") or "").strip()
         name = disp or native or code
@@ -149,18 +152,22 @@ class WeblateClient:
             return 200, r.json()
         return r.status_code, {}
 
-    def create_language(self, code: str, name: str, plural_number: int,
-                        plural_formula: str, direction: Optional[str]
-                       ) -> Tuple[int, str]:
+    def create_language(
+        self, code: str, name: str, plural_number: int,
+        plural_formula: str, direction: Optional[str],
+    ) -> Tuple[int, str]:
+
         payload = {
             "code": code,
             "name": name or code,
             "plural": {"number": plural_number, "formula": plural_formula},
         }
+
         if direction in ("ltr", "rtl"):
             payload["direction"] = direction
         r = self.session.post(f"{self.base}/api/languages/",
                               json=payload, timeout=self.timeout)
+
         try:
             r.raise_for_status()
             return r.status_code, ""
@@ -196,8 +203,8 @@ def main():
     p.add_argument("--apply", action="store_true", help="Changes to Weblate")
     args = p.parse_args()
 
-    url = os.getenv("WEBLATE_URL", "")
-    token = os.getenv("WEBLATE_API_KEY", "")
+    url = os.getenv("WEBLATE_URL")
+    token = os.getenv("WEBLATE_API_KEY")
     if not token:
         print("ERROR: Specify WEBLATE_API_KEY environment variable.",
               file=sys.stderr)
